@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>To‑Do List — AI Crafted</title>
+  <meta name="description" content="A sleek to‑do app with priorities, due dates, filters, and localStorage." />
+  <link rel="icon" href="data:,">
+  <style>
+    :root{--bg:#0b1220;--card:#101828;--muted:#9aa4b2;--text:#e6ebf2;--accent:#6ae3ff;--ok:#65d48c;--warn:#ffcc66;--bad:#ff8c8c;--border:#1f2a44}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b1220 0%,#111827 100%);color:var(--text);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+    .wrap{max-width:980px;margin:24px auto;padding:16px}
+    .app{background:var(--card);border:1px solid var(--border);border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.25);overflow:hidden}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border)}
+    header h1{margin:0;font-size:20px;letter-spacing:.3px}
+    header .right{display:flex;gap:8px;align-items:center}
+    .btn{border:1px solid var(--border);background:#0f1729;color:var(--text);padding:10px 12px;border-radius:12px;cursor:pointer}
+    .btn:hover{border-color:#2a3961}
+    .btn.primary{background:linear-gradient(180deg,#0ea5e9,#0284c7);border-color:#0284c7}
+    .btn.ghost{background:transparent}
+    .grid{display:grid;grid-template-columns:1fr 330px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .panel{padding:16px 20px}
+    .panel + .panel{border-left:1px solid var(--border)}
+    @media (max-width:900px){.panel + .panel{border-left:none;border-top:1px solid var(--border)}}
+    .row{display:flex;gap:10px;align-items:center}
+    input,select,textarea{width:100%;background:#0d1526;border:1px solid var(--border);color:var(--text);padding:10px 12px;border-radius:12px}
+    textarea{min-height:44px;resize:vertical}
+    label{font-size:12px;color:var(--muted)}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .task{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:flex-start;background:#0d1526;border:1px solid var(--border);border-radius:16px;padding:12px}
+    .task + .task{margin-top:10px}
+    .task.done{opacity:.65}
+    .title{font-weight:600}
+    .meta{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+    .tag{padding:2px 8px;border-radius:999px;border:1px solid var(--border)}
+    .prio-low{color:var(--ok)}.prio-med{color:var(--warn)}.prio-high{color:var(--bad)}
+    .filters{display:flex;flex-wrap:wrap;gap:8px}
+    .filters .btn{padding:8px 10px;font-size:13px}
+    .empty{color:var(--muted);text-align:center;padding:28px 8px}
+    .hint{font-size:12px;color:var(--muted)}
+    .muted{color:var(--muted)}
+    .kbd{border:1px solid var(--border);padding:2px 6px;border-radius:6px;font-size:12px;background:#0c1322}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="app">
+      <header>
+        <h1>📝 To‑Do List</h1>
+        <div class="right">
+          <button class="btn ghost" id="exportBtn" title="Export JSON">Export</button>
+          <button class="btn ghost" id="importBtn" title="Import JSON">Import</button>
+          <button class="btn primary" id="addQuick">Add Quick Task</button>
+        </div>
+      </header>
+      <div class="grid">
+        <section class="panel">
+          <div class="fields" style="margin-bottom:12px">
+            <div class="field"><label>Search</label><input id="search" placeholder="Search tasks or #tags" /></div>
+            <div class="field"><label>Sort</label>
+              <select id="sort">
+                <option value="created">Created (newest)</option>
+                <option value="due">Due date</option>
+                <option value="priority">Priority</option>
+                <option value="title">Title A→Z</option>
+              </select>
+            </div>
+          </div>
+          <div class="filters" style="margin-bottom:12px">
+            <button class="btn ghost" data-filter="all">All</button>
+            <button class="btn ghost" data-filter="open">Open</button>
+            <button class="btn ghost" data-filter="today">Due Today</button>
+            <button class="btn ghost" data-filter="overdue">Overdue</button>
+            <button class="btn ghost" data-filter="done">Completed</button>
+          </div>
+          <div id="list"></div>
+          <div class="empty" id="empty" hidden>Nothing here yet. Add a task →</div>
+        </section>
+        <aside class="panel">
+          <h3 style="margin:4px 0 12px">Add / Edit Task</h3>
+          <form id="form" class="col" autocomplete="off">
+            <div class="field"><label>Title</label><input id="title" required placeholder="e.g., Clean customer dataset" /></div>
+            <div class="field"><label>Description</label><textarea id="desc" placeholder="Optional details…"></textarea></div>
+            <div class="fields">
+              <div class="field"><label>Priority</label>
+                <select id="priority">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div class="field"><label>Due date</label><input id="due" type="date" /></div>
+            </div>
+            <div class="field"><label>Tags (comma or #tag)</label><input id="tags" placeholder="#sql, #python" /></div>
+            <div class="row" style="justify-content:space-between;margin-top:10px">
+              <div class="hint">Tip: press <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to save</div>
+              <div class="row" style="gap:8px">
+                <button type="reset" class="btn ghost" id="resetBtn">Clear</button>
+                <button class="btn primary" type="submit" id="saveBtn">Save Task</button>
+              </div>
+            </div>
+            <input type="hidden" id="editingId" />
+          </form>
+          <p class="muted" style="margin-top:16px">Data is saved locally in your browser.</p>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const $$ = s => Array.from(document.querySelectorAll(s));
+    const storeKey = 'ai_todo_tasks_v1';
+
+    const state = {
+      tasks: load(),
+      filter: 'open',
+      q: '',
+      sort: 'created'
+    };
+
+    function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
+    function todayStr(){const d=new Date();d.setHours(0,0,0,0);return d.toISOString().slice(0,10)}
+
+    function load(){
+      try{ return JSON.parse(localStorage.getItem(storeKey))||[] }catch{ return [] }
+    }
+    function save(){ localStorage.setItem(storeKey, JSON.stringify(state.tasks)) }
+
+    function sanitizeTags(input){
+      if(!input) return [];
+      return input.split(/[#,\s]+/).map(t=>t.trim()).filter(Boolean).map(t=>t.toLowerCase());
+    }
+
+    function render(){
+      const list = $('#list');
+      list.innerHTML = '';
+
+      const q = state.q.toLowerCase().trim();
+      const tdy = todayStr();
+
+      let items = state.tasks.slice();
+      if(q){
+        items = items.filter(t => (t.title+t.desc).toLowerCase().includes(q) || (t.tags||[]).some(tag=>('#'+tag).includes(q)) );
+      }
+      items = items.filter(t => {
+        if(state.filter==='all') return true;
+        if(state.filter==='open') return !t.done;
+        if(state.filter==='done') return !!t.done;
+        if(state.filter==='today') return !t.done && t.due===tdy;
+        if(state.filter==='overdue') return !t.done && t.due && t.due<tdy;
+        return true;
+      });
+
+      items.sort((a,b)=>{
+        if(state.sort==='title') return a.title.localeCompare(b.title);
+        if(state.sort==='priority'){
+          const rank = {high:0, medium:1, low:2};
+          return rank[a.priority]-rank[b.priority];
+        }
+        if(state.sort==='due') return (a.due||'9999') < (b.due||'9999') ? -1 : 1;
+        return b.created - a.created; // created
+      });
+
+      if(items.length===0){ $('#empty').hidden=false; return }
+      $('#empty').hidden=true;
+
+      for(const t of items){
+        const el = document.createElement('div');
+        el.className = 'task' + (t.done?' done':'');
+        el.innerHTML = `
+          <input type="checkbox" ${t.done?'checked':''} aria-label="toggle done" />
+          <div>
+            <div class="title">${escapeHtml(t.title)}</div>
+            <div class="meta">
+              <span class="tag prio-${t.priority==='high'?'high':t.priority==='low'?'low':'med'}">${t.priority} prio</span>
+              ${t.due?`<span class="tag">📅 ${t.due}</span>`:''}
+              ${(t.tags||[]).map(x=>`<span class="tag">#${escapeHtml(x)}</span>`).join('')}
+              ${t.desc?`<span class="muted">— ${escapeHtml(t.desc)}</span>`:''}
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn ghost" data-act="edit">Edit</button>
+            <button class="btn ghost" data-act="del">Delete</button>
+          </div>`;
+        const [chk] = el.children;
+        chk.addEventListener('change',()=>{ t.done = chk.checked; save(); render(); });
+        el.querySelector('[data-act="edit"]').onclick = ()=>loadToForm(t.id);
+        el.querySelector('[data-act="del"]').onclick = ()=>{ if(confirm('Delete task?')){ removeTask(t.id) } };
+        list.appendChild(el);
+      }
+    }
+
+    function escapeHtml(s){return s.replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",
+      ">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
+
+    function addOrUpdateTask(data){
+      if(data.id){
+        const idx = state.tasks.findIndex(t=>t.id===data.id);
+        if(idx>-1) state.tasks[idx] = {...state.tasks[idx], ...data};
+      }else{
+        state.tasks.push({id:uid(), created:Date.now(), done:false, ...data});
+      }
+      save();
+      render();
+      $('#form').reset();
+      $('#editingId').value='';
+      $('#title').focus();
+    }
+
+    function removeTask(id){
+      state.tasks = state.tasks.filter(t=>t.id!==id); save(); render();
+    }
+
+    function loadToForm(id){
+      const t = state.tasks.find(x=>x.id===id); if(!t) return;
+      $('#editingId').value = t.id;
+      $('#title').value = t.title;
+      $('#desc').value = t.desc||'';
+      $('#priority').value = t.priority||'medium';
+      $('#due').value = t.due||'';
+      $('#tags').value = (t.tags||[]).map(x=>'#'+x).join(' ');
+      $('#title').focus();
+    }
+
+    // Form events
+    $('#form').addEventListener('submit', e=>{
+      e.preventDefault();
+      const data = {
+        id: $('#editingId').value || undefined,
+        title: $('#title').value.trim(),
+        desc: $('#desc').value.trim(),
+        priority: $('#priority').value,
+        due: $('#due').value || undefined,
+        tags: sanitizeTags($('#tags').value)
+      };
+      if(!data.title){ alert('Please enter a title'); return }
+      addOrUpdateTask(data);
+    });
+
+    document.addEventListener('keydown', e=>{
+      if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){
+        e.preventDefault(); $('#saveBtn').click();
+      }
+    });
+
+    // Search / filter / sort
+    $('#search').addEventListener('input', e=>{ state.q=e.target.value; render(); });
+    $('#sort').addEventListener('change', e=>{ state.sort=e.target.value; render(); });
+    $$('.filters .btn').forEach(b=> b.onclick = ()=>{ state.filter=b.dataset.filter; render(); });
+
+    // Quick add
+    $('#addQuick').onclick = ()=>{
+      const t = prompt('Quick task title');
+      if(t){ addOrUpdateTask({ title:t.trim(), priority:'medium', tags:[], desc:'', due:undefined }); }
+    }
+
+    // Import / Export
+    $('#exportBtn').onclick = ()=>{
+      const blob = new Blob([JSON.stringify(state.tasks,null,2)],{type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'todo-export.json';
+      a.click();
+    }
+    $('#importBtn').onclick = async ()=>{
+      const [file] = await pickFile('.json');
+      if(!file) return;
+      const text = await file.text();
+      try{ const arr = JSON.parse(text); if(Array.isArray(arr)){ state.tasks = arr; save(); render(); } else alert('Invalid JSON'); }
+      catch{ alert('Invalid JSON'); }
+    }
+
+    function pickFile(accept){
+      return new Promise(resolve=>{
+        const inp = document.createElement('input');
+        inp.type='file'; inp.accept=accept; inp.onchange=()=>resolve(inp.files); inp.click();
+      })
+    }
+
+    // Seed helpful example tasks on first run
+    if(state.tasks.length===0){
+      const seed=[
+        {title:'Check emails/messages from mentor',priority:'low',tags:['communication'],desc:'Look for updates or blockers'},
+        {title:'Clean small dataset',priority:'medium',tags:['python','pandas'],desc:'Handle nulls & duplicates',due:todayStr()},
+        {title:'Practice 2 SQL queries',priority:'high',tags:['sql'],desc:'joins / window functions'},
+      ];
+      seed.forEach(x=>addOrUpdateTask(x));
+    } else {
+      render();
+    }
+  </script>
+</body>
+</html>
